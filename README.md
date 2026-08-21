@@ -4,7 +4,7 @@
 
 ## 打开可视化页面
 
-直接双击：
+直接双击：1
 
 ```text
 start-dashboard.command
