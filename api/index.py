@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 from http import HTTPStatus
+from pathlib import Path
 from urllib.parse import parse_qs
 
-from api._shared import add_property, build_report, send_json, validate_date, yesterday
+from api._shared import add_property, build_report, validate_date, yesterday
+
+INDEX_FILE = Path(__file__).resolve().parents[1] / "index.html"
 
 
 def _read_json_body(environ) -> dict[str, object]:
@@ -15,16 +18,47 @@ def _read_json_body(environ) -> dict[str, object]:
     return json.loads(body)
 
 
+def _send_response(
+    start_response,
+    status: HTTPStatus,
+    content: bytes,
+    content_type: str,
+):
+    headers = [
+        ("Content-Type", content_type),
+        ("Content-Length", str(len(content))),
+        ("Cache-Control", "no-store"),
+    ]
+    start_response(f"{status.value} {status.phrase}", headers)
+    return [content]
+
+
+def _api_path(path: str) -> str:
+    if path == "/api":
+        return "/"
+    if path.startswith("/api/"):
+        return path[4:]
+    return path
+
+
 def app(environ, start_response):
     method = environ.get("REQUEST_METHOD", "GET").upper()
-    path = environ.get("PATH_INFO", "")
+    raw_path = environ.get("PATH_INFO", "")
+    path = _api_path(raw_path)
     query = parse_qs(environ.get("QUERY_STRING", ""))
 
     status = HTTPStatus.OK
     payload: dict[str, object]
 
     try:
-        if method == "GET" and path in {"", "/"}:
+        if method == "GET" and raw_path in {"", "/"}:
+            return _send_response(
+                start_response,
+                HTTPStatus.OK,
+                INDEX_FILE.read_bytes(),
+                "text/html; charset=utf-8",
+            )
+        if method == "GET" and path in {"/config"}:
             payload = {
                 "default_date": yesterday(),
                 "max_date": yesterday(),
